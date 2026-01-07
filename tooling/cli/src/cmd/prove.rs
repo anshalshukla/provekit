@@ -46,7 +46,12 @@ impl Command for Args {
         // Read the scheme
         let prover: Prover = read(&self.prover_path).context("while reading Provekit Prover")?;
         let (constraints, witnesses) = prover.size();
-        info!(constraints, witnesses, "Read Noir proof scheme");
+        info!(
+            constraints,
+            witnesses,
+            hash = %prover.hash_function,
+            "Read Noir proof scheme"
+        );
 
         // // Read the input toml
         // let input_map = scheme.read_witness(&self.input_path)?;

@@ -5,7 +5,7 @@ use {
     provekit_common::{file::read, Verifier},
     provekit_verifier::Verify,
     std::path::PathBuf,
-    tracing::instrument,
+    tracing::{info, instrument},
 };
 
 /// Prove a prepared Noir program
@@ -27,6 +27,7 @@ impl Command for Args {
         // Read the scheme
         let mut verifier: Verifier =
             read(&self.verifier_path).context("while reading Provekit Verifier")?;
+        info!(hash = %verifier.hash_function, "Loaded verifier");
 
         // Read the proof
         let proof = read(&self.proof_path).context("while reading proof")?;

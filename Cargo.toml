@@ -93,8 +93,10 @@ anyhow = "1.0.93"
 argh = "0.1.12"
 axum = "0.8.4"
 base64 = "0.22.1"
+blake3 = "1.8.2"
 bytes = "1.10.1"
 chrono = "0.4.41"
+digest = "0.10.7"
 divan = { package = "codspeed-divan-compat", version = "3.0.1" }
 hex = "0.4.3"
 itertools = "0.14.0"
@@ -113,6 +115,9 @@ seq-macro = "0.3.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10.9"
+sha3 = "0.10.8"
+libc = "0.2.164"
+sysinfo = "0.30.13"
 test-case = "3.3.1"
 toml = "0.8.8"
 tokio = { version = "1.47.1", features = ["full"] }
@@ -152,4 +157,7 @@ spongefish = { git = "https://github.com/arkworks-rs/spongefish", features = [
   "arkworks-algebra",
 ], rev = "ecb4f08373ed930175585c856517efdb1851fb47" }
 spongefish-pow = { git = "https://github.com/arkworks-rs/spongefish", rev = "ecb4f08373ed930175585c856517efdb1851fb47" }
+spongefish-poseidon = { git = "https://github.com/arkworks-rs/spongefish", rev = "ecb4f08373ed930175585c856517efdb1851fb47", features = [
+  "bn254",
+] }
 whir = { git = "https://github.com/WizardOfMenlo/whir/", features = ["tracing"], rev = "cf1599b56ff50e09142ebe6d2e2fbd86875c9986" }

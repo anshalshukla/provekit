@@ -2,21 +2,23 @@ use {
     anyhow::{ensure, Context, Result},
     ark_std::{One, Zero},
     provekit_common::{
-        skyscraper::SkyscraperSponge,
+        hash::{HashConfig, WhirCompatibleHash},
         utils::sumcheck::{calculate_eq, eval_cubic_poly},
         FieldElement, WhirConfig, WhirR1CSProof, WhirR1CSScheme,
     },
     spongefish::{
         codecs::arkworks_algebra::{FieldToUnitDeserialize, UnitToField},
-        VerifierState,
+        duplex_sponge::DuplexSponge,
+        DomainSeparator, ProverState, VerifierState,
     },
     tracing::instrument,
     whir::{
         poly_utils::{evals::EvaluationsList, multilinear::MultilinearPoint},
         whir::{
             committer::{reader::ParsedCommitment, CommitmentReader},
+            domainsep::WhirDomainSeparator,
             statement::{Statement, Weights},
-            utils::HintDeserialize,
+            utils::{DigestToUnitDeserialize, HintDeserialize},
             verifier::Verifier,
         },
     },
@@ -29,17 +31,34 @@ pub struct DataFromSumcheckVerifier {
 }
 
 pub trait WhirR1CSVerifier {
-    fn verify(&self, proof: &WhirR1CSProof) -> Result<()>;
+    fn verify_with_hash<H: WhirCompatibleHash>(&self, proof: &WhirR1CSProof) -> Result<()>
+    where
+        DomainSeparator<DuplexSponge<H::Perm>, FieldElement>:
+            WhirDomainSeparator<FieldElement, <H as HashConfig>::MerkleConfig>,
+        for<'a> VerifierState<'a, DuplexSponge<H::Perm>, FieldElement>:
+            DigestToUnitDeserialize<<H as HashConfig>::MerkleConfig>,
+        ProverState<DuplexSponge<H::Perm>, FieldElement>:
+            whir::whir::utils::DigestToUnitSerialize<<H as HashConfig>::MerkleConfig>;
 }
 
 impl WhirR1CSVerifier for WhirR1CSScheme {
     #[instrument(skip_all)]
-    #[allow(unused)]
-    fn verify(&self, proof: &WhirR1CSProof) -> Result<()> {
-        let io = self.create_io_pattern();
+    fn verify_with_hash<H: WhirCompatibleHash>(&self, proof: &WhirR1CSProof) -> Result<()>
+    where
+        DomainSeparator<DuplexSponge<<H as HashConfig>::Perm>, FieldElement>:
+            WhirDomainSeparator<FieldElement, <H as HashConfig>::MerkleConfig>,
+        for<'a> VerifierState<'a, DuplexSponge<<H as HashConfig>::Perm>, FieldElement>:
+            DigestToUnitDeserialize<<H as HashConfig>::MerkleConfig>,
+        ProverState<DuplexSponge<<H as HashConfig>::Perm>, FieldElement>:
+            whir::whir::utils::DigestToUnitSerialize<<H as HashConfig>::MerkleConfig>,
+    {
+        let io = self.create_io_pattern_with_hash::<H>();
         let mut arthur = io.to_verifier_state(&proof.transcript);
 
-        let commitment_reader = CommitmentReader::new(&self.whir_witness);
+        let whir_witness_config = self.whir_witness.instantiate::<H>();
+        let whir_hiding_config = self.whir_for_hiding_spartan.instantiate::<H>();
+
+        let commitment_reader = CommitmentReader::new(&whir_witness_config);
         let parsed_commitment_1 = commitment_reader.parse_commitment(&mut arthur)?;
 
         // Parse second commitment only if we have challenges
@@ -53,7 +72,7 @@ impl WhirR1CSVerifier for WhirR1CSScheme {
 
         // Sumcheck verification (common to both paths)
         let data_from_sumcheck_verifier =
-            run_sumcheck_verifier(&mut arthur, self.m_0, &self.whir_for_hiding_spartan)
+            run_sumcheck_verifier::<H>(&mut arthur, self.m_0, &whir_hiding_config)
                 .context("while verifying sumcheck")?;
 
         // Read hints and verify WHIR proof
@@ -79,9 +98,9 @@ impl WhirR1CSVerifier for WhirR1CSScheme {
                     &whir_sums_2,
                 );
 
-                run_whir_pcs_batch_verifier(
+                run_whir_pcs_batch_verifier::<H>(
                     &mut arthur,
-                    &self.whir_witness,
+                    &whir_witness_config,
                     &[parsed_commitment_1, parsed_commitment_2],
                     &[statement_1, statement_2],
                 )
@@ -104,10 +123,10 @@ impl WhirR1CSVerifier for WhirR1CSScheme {
                     &whir_sums,
                 );
 
-                run_whir_pcs_verifier(
+                run_whir_pcs_verifier::<H>(
                     &mut arthur,
                     &parsed_commitment_1,
-                    &self.whir_witness,
+                    &whir_witness_config,
                     &statement,
                 )
                 .context("while verifying WHIR proof")?;
@@ -148,11 +167,16 @@ fn prepare_statement_for_witness_verifier<const N: usize>(
 }
 
 #[instrument(skip_all)]
-pub fn run_sumcheck_verifier(
-    arthur: &mut VerifierState<SkyscraperSponge, FieldElement>,
+
+pub fn run_sumcheck_verifier<H: WhirCompatibleHash>(
+    arthur: &mut VerifierState<DuplexSponge<H::Perm>, FieldElement>,
     m_0: usize,
-    whir_for_spartan_blinding_config: &WhirConfig,
-) -> Result<DataFromSumcheckVerifier> {
+    whir_for_spartan_blinding_config: &WhirConfig<H>,
+) -> Result<DataFromSumcheckVerifier>
+where
+    for<'a> VerifierState<'a, DuplexSponge<H::Perm>, FieldElement>:
+        DigestToUnitDeserialize<<H as HashConfig>::MerkleConfig>,
+{
     let mut r = vec![FieldElement::zero(); m_0];
     let _ = arthur.fill_challenge_scalars(&mut r);
 
@@ -196,7 +220,7 @@ pub fn run_sumcheck_verifier(
         ]),
     );
 
-    run_whir_pcs_verifier(
+    run_whir_pcs_verifier::<H>(
         arthur,
         &parsed_commitment,
         whir_for_spartan_blinding_config,
@@ -214,12 +238,17 @@ pub fn run_sumcheck_verifier(
 }
 
 #[instrument(skip_all)]
-pub fn run_whir_pcs_verifier(
-    arthur: &mut VerifierState<SkyscraperSponge, FieldElement>,
+
+pub fn run_whir_pcs_verifier<H: WhirCompatibleHash>(
+    arthur: &mut VerifierState<DuplexSponge<H::Perm>, FieldElement>,
     parsed_commitment: &ParsedCommitment<FieldElement, FieldElement>,
-    params: &WhirConfig,
+    params: &WhirConfig<H>,
     statement_verifier: &Statement<FieldElement>,
-) -> Result<(MultilinearPoint<FieldElement>, Vec<FieldElement>)> {
+) -> Result<(MultilinearPoint<FieldElement>, Vec<FieldElement>)>
+where
+    for<'a> VerifierState<'a, DuplexSponge<H::Perm>, FieldElement>:
+        DigestToUnitDeserialize<<H as HashConfig>::MerkleConfig>,
+{
     let verifier = Verifier::new(params);
     let (folding_randomness, deferred) = verifier
         .verify(arthur, parsed_commitment, statement_verifier)
@@ -228,12 +257,17 @@ pub fn run_whir_pcs_verifier(
 }
 
 #[instrument(skip_all)]
-pub fn run_whir_pcs_batch_verifier(
-    arthur: &mut VerifierState<SkyscraperSponge, FieldElement>,
-    params: &WhirConfig,
+
+pub fn run_whir_pcs_batch_verifier<H: WhirCompatibleHash>(
+    arthur: &mut VerifierState<DuplexSponge<H::Perm>, FieldElement>,
+    params: &WhirConfig<H>,
     parsed_commitments: &[ParsedCommitment<FieldElement, FieldElement>],
     statements: &[Statement<FieldElement>],
-) -> Result<(MultilinearPoint<FieldElement>, Vec<FieldElement>)> {
+) -> Result<(MultilinearPoint<FieldElement>, Vec<FieldElement>)>
+where
+    for<'a> VerifierState<'a, DuplexSponge<H::Perm>, FieldElement>:
+        DigestToUnitDeserialize<<H as HashConfig>::MerkleConfig>,
+{
     let verifier = Verifier::new(params);
     let (folding_randomness, deferred) = verifier
         .verify_batch(arthur, parsed_commitments, statements)

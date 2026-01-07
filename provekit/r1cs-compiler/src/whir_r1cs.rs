@@ -1,17 +1,7 @@
-use {
-    provekit_common::{utils::next_power_of_two, WhirConfig, WhirR1CSScheme, R1CS},
-    std::sync::Arc,
-    whir::{
-        ntt::RSDefault,
-        parameters::{
-            default_max_pow, DeduplicationStrategy, FoldingFactor, MerkleProofStrategy,
-            MultivariateParameters, ProtocolParameters, SoundnessType,
-        },
-    },
+use provekit_common::{
+    utils::next_power_of_two, WhirConfigSpec, WhirR1CSScheme, MIN_WHIR_NUM_VARIABLES, R1CS,
 };
 
-// Minimum log2 of the WHIR evaluation domain (lower bound for m).
-const MIN_WHIR_NUM_VARIABLES: usize = 12;
 // Minimum number of variables in the sumcheck’s multilinear polynomial (lower
 // bound for m_0).
 const MIN_SUMCHECK_NUM_VARIABLES: usize = 1;
@@ -19,7 +9,7 @@ const MIN_SUMCHECK_NUM_VARIABLES: usize = 1;
 pub trait WhirR1CSSchemeBuilder {
     fn new_for_r1cs(r1cs: &R1CS, w1_size: usize, num_challenges: usize) -> Self;
 
-    fn new_whir_config_for_size(num_variables: usize, batch_size: usize) -> WhirConfig;
+    fn new_whir_config_for_size(num_variables: usize, batch_size: usize) -> WhirConfigSpec;
 }
 
 impl WhirR1CSSchemeBuilder for WhirR1CSScheme {
@@ -52,26 +42,7 @@ impl WhirR1CSSchemeBuilder for WhirR1CSScheme {
         }
     }
 
-    fn new_whir_config_for_size(num_variables: usize, batch_size: usize) -> WhirConfig {
-        let nv = num_variables.max(MIN_WHIR_NUM_VARIABLES);
-
-        let mv_params = MultivariateParameters::new(nv);
-        let whir_params = ProtocolParameters {
-            initial_statement: true,
-            security_level: 128,
-            pow_bits: default_max_pow(nv, 1),
-            folding_factor: FoldingFactor::Constant(4),
-            leaf_hash_params: (),
-            two_to_one_params: (),
-            soundness_type: SoundnessType::ConjectureList,
-            _pow_parameters: Default::default(),
-            starting_log_inv_rate: 1,
-            batch_size,
-            deduplication_strategy: DeduplicationStrategy::Disabled,
-            merkle_proof_strategy: MerkleProofStrategy::Uncompressed,
-        };
-        let reed_solomon = Arc::new(RSDefault);
-        let basefield_reed_solomon = reed_solomon.clone();
-        WhirConfig::new(reed_solomon, basefield_reed_solomon, mv_params, whir_params)
+    fn new_whir_config_for_size(num_variables: usize, batch_size: usize) -> WhirConfigSpec {
+        WhirConfigSpec::new(num_variables.max(MIN_WHIR_NUM_VARIABLES), batch_size)
     }
 }

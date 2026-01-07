@@ -25,6 +25,8 @@ Prepare the Noir program (generates prover and verifier files):
 
 ```sh
 cargo run --release --bin provekit-cli prepare ./target/basic.json --pkp ./prover.pkp --pkv ./verifier.pkv
+# Select the transcript/Merkle hash (choices: sha2, sha3, blake3, skyscraper_v2, poseidon2)
+cargo run --release --bin provekit-cli prepare ./target/basic.json --pkp ./prover-sha3.pkp --pkv ./verifier-sha3.pkv --hash sha3
 ```
 
 Generate the Noir Proof using the input Toml:
@@ -64,7 +66,11 @@ Benchmark against Barretenberg:
 cd noir-examples/poseidon-rounds
 cargo run --release --bin provekit-cli prepare ./target/basic.json --pkp ./prover.pkp --pkv ./verifier.pkv
 hyperfine 'nargo execute && bb prove -b ./target/basic.json -w ./target/basic.gz -o ./target' '../../target/release/provekit-cli prove ./prover.pkp ./Prover.toml'
+# Benchmark transcript hashes end-to-end (averages/variance written to JSON)
+cargo run --release --bin provekit-cli bench --program ./target/basic.json --input ./Prover.toml --summary-json ./hash_bench_results.json
 ```
+
+The benchmarking command accepts `--hashes sha2,sha3,...` and `--runs <n>` for fine control.
 
 ### Profiling
 
@@ -93,28 +99,36 @@ due to data transfer between the application and the tracy running along.
 Usage:
 
 1. Start tracy from command line
+
 ```sh
 tracy
 ```
-2. Leave all fields with defaults and just click `Connect` button. It will cause tracy to start listening on the
+
+1. Leave all fields with defaults and just click `Connect` button. It will cause tracy to start listening on the
    localhost for incoming data.
-3.  Compile `noir-r1cs-profiled` binary.
+2. Compile `noir-r1cs-profiled` binary.
+
 ```sh
 cargo build --release --bin provekit-cli --features profiling
 ```
-4. (OSX only) If you want to check call stacks additional command needs to be run (base on tracy instruction). The
-   command must be run against each binary that is being profiled by tracy. This will create directory next to the 
+
+1. (OSX only) If you want to check call stacks additional command needs to be run (base on tracy instruction). The
+   command must be run against each binary that is being profiled by tracy. This will create directory next to the
    binary provided with `.dSYM` suffix (ex. `../../target/profiled-cli.dSYM`). Directory will contain the
    debug symbols and paths extracted with different format that is compatible with tracy tool. It must be rerun after
    each changes made to `provekit-cli` app.
+
 ```sh
  dsymutil ../../target/release/provekit-cli
 ```
-5. Now start the application to profile:
+
+1. Now start the application to profile:
+
 ```sh
 ../../target/release/provekit-cli prove ./prover.pkp ./Prover.toml -o ./proof.np
 ```
-6. Go back to tracy tool. You should see that it receives data. App is interactive.
+
+1. Go back to tracy tool. You should see that it receives data. App is interactive.
 
 #### Using samply (CPU usage)
 
@@ -156,21 +170,25 @@ cargo test -p provekit-bench --bench bench
 ProveKit follows a modular architecture with clear separation of concerns:
 
 ### Core Modules
+
 - **`provekit/common/`** - Shared utilities, core types, and R1CS abstractions
 - **`provekit/r1cs-compiler/`** - R1CS compilation logic and Noir integration  
 - **`provekit/prover/`** - Proving functionality with witness generation
 - **`provekit/verifier/`** - Verification functionality
 
 ### Tooling
+
 - **`tooling/cli/`** - Command-line interface (`provekit-cli`)
 - **`tooling/provekit-bench/`** - Benchmarking infrastructure
 - **`tooling/provekit-gnark/`** - Gnark integration utilities
 
 ### High-Performance Components
+
 - **`skyscraper/`** - Optimized field arithmetic for M31/CM31 fields
 - **`playground/`** - Research and experimental implementations
 
 ### Examples & Tests
+
 - **`noir-examples/`** - Example circuits and test programs
 - **`gnark-whir/`** - Go-based recursive verification using Gnark
 

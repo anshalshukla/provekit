@@ -9,7 +9,7 @@ use {
         models::VerifyRequest,
         services::artifact::ArtifactPaths,
     },
-    provekit_common::{NoirProof, Verifier},
+    provekit_common::{hash::dispatch_hash, NoirProof, Verifier},
     provekit_gnark::write_gnark_parameters_to_file,
     std::time::Instant,
     tokio_util::sync::CancellationToken,
@@ -87,18 +87,25 @@ impl VerificationService {
             .as_ref()
             .ok_or_else(|| AppError::Internal("WHIR scheme not found in verifier".to_string()))?;
 
-        write_gnark_parameters_to_file(
-            &whir_scheme.whir_witness,
-            &whir_scheme.whir_for_hiding_spartan,
-            &proof.whir_r1cs_proof.transcript,
-            &whir_scheme.create_io_pattern(),
-            whir_scheme.m_0,
-            whir_scheme.m,
-            whir_scheme.a_num_terms,
-            whir_scheme.num_challenges,
-            whir_scheme.w1_size,
-            gnark_params_path,
-        );
+        dispatch_hash!(verifier.hash_function, |H| {
+            let io = whir_scheme.create_io_pattern_with_hash::<H>();
+            let io_pattern_bytes = io.as_bytes().to_vec();
+            let whir_witness_config = whir_scheme.whir_witness.instantiate::<H>();
+            let whir_hiding_config = whir_scheme.whir_for_hiding_spartan.instantiate::<H>();
+
+            write_gnark_parameters_to_file::<H>(
+                &whir_witness_config,
+                &whir_hiding_config,
+                &proof.whir_r1cs_proof.transcript,
+                &io_pattern_bytes,
+                whir_scheme.m_0,
+                whir_scheme.m,
+                whir_scheme.a_num_terms,
+                whir_scheme.num_challenges,
+                whir_scheme.w1_size,
+                gnark_params_path,
+            );
+        });
 
         info!("Gnark parameters prepared successfully");
         Ok(())

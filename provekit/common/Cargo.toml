@@ -24,11 +24,14 @@ ark-serialize.workspace = true
 ark-std.workspace = true
 spongefish.workspace = true
 spongefish-pow.workspace = true
+spongefish-poseidon.workspace = true
 whir.workspace = true
 
 # 3rd party
 anyhow.workspace = true
+blake3.workspace = true
 bytes.workspace = true
+digest.workspace = true
 hex.workspace = true
 itertools.workspace = true
 postcard.workspace = true
@@ -37,6 +40,8 @@ rayon.workspace = true
 ruint.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+sha3.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 zeroize.workspace = true

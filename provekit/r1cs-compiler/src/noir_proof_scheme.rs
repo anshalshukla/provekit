@@ -6,6 +6,7 @@ use {
     anyhow::{ensure, Context as _, Result},
     noirc_artifacts::program::ProgramArtifact,
     provekit_common::{
+        hash::HashFunction,
         utils::PrintAbi,
         witness::{NoirWitnessGenerator, WitnessBuilder},
         NoirProofScheme, WhirR1CSScheme,
@@ -17,9 +18,29 @@ use {
 pub trait NoirProofSchemeBuilder {
     fn from_file(path: impl AsRef<Path> + std::fmt::Debug) -> Result<Self>
     where
+        Self: Sized,
+    {
+        Self::from_file_with_hash(path, HashFunction::default())
+    }
+
+    fn from_file_with_hash(
+        path: impl AsRef<Path> + std::fmt::Debug,
+        hash_function: HashFunction,
+    ) -> Result<Self>
+    where
         Self: Sized;
 
     fn from_program(program: ProgramArtifact) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Self::from_program_with_hash(program, HashFunction::default())
+    }
+
+    fn from_program_with_hash(
+        program: ProgramArtifact,
+        hash_function: HashFunction,
+    ) -> Result<Self>
     where
         Self: Sized;
 }
@@ -27,14 +48,30 @@ pub trait NoirProofSchemeBuilder {
 impl NoirProofSchemeBuilder for NoirProofScheme {
     #[instrument(fields(size = path.as_ref().metadata().map(|m| m.len()).ok()))]
     fn from_file(path: impl AsRef<Path> + std::fmt::Debug) -> Result<Self> {
+        Self::from_file_with_hash(path, HashFunction::default())
+    }
+
+    #[instrument(fields(size = path.as_ref().metadata().map(|m| m.len()).ok()))]
+    fn from_file_with_hash(
+        path: impl AsRef<Path> + std::fmt::Debug,
+        hash_function: HashFunction,
+    ) -> Result<Self> {
         let file = File::open(path).context("while opening Noir program")?;
         let program = serde_json::from_reader(file).context("while reading Noir program")?;
 
-        Self::from_program(program)
+        Self::from_program_with_hash(program, hash_function)
     }
 
     #[instrument(skip_all)]
     fn from_program(program: ProgramArtifact) -> Result<Self> {
+        Self::from_program_with_hash(program, HashFunction::default())
+    }
+
+    #[instrument(skip_all)]
+    fn from_program_with_hash(
+        program: ProgramArtifact,
+        hash_function: HashFunction,
+    ) -> Result<Self> {
         info!("Program noir version: {}", program.noir_version);
         info!("Program entry point: fn main{};", PrintAbi(&program.abi));
         ensure!(
@@ -90,6 +127,7 @@ impl NoirProofSchemeBuilder for NoirProofScheme {
             split_witness_builders,
             witness_generator,
             whir_for_witness,
+            hash_function,
         })
     }
 }

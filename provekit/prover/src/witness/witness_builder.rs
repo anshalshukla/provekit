@@ -4,7 +4,7 @@ use {
     ark_ff::{BigInteger, PrimeField},
     ark_std::Zero,
     provekit_common::{
-        skyscraper::SkyscraperSponge,
+        hash::HashConfig,
         utils::noir_to_native,
         witness::{
             ConstantOrR1CSWitness, ConstantTerm, ProductLinearTerm, SumTerm, WitnessBuilder,
@@ -12,24 +12,24 @@ use {
         },
         FieldElement, NoirElement,
     },
-    spongefish::{codecs::arkworks_algebra::UnitToField, ProverState},
+    spongefish::{codecs::arkworks_algebra::UnitToField, duplex_sponge::DuplexSponge, ProverState},
 };
 
 pub trait WitnessBuilderSolver {
-    fn solve(
+    fn solve<H: HashConfig>(
         &self,
         acir_witness_idx_to_value_map: &WitnessMap<NoirElement>,
         witness: &mut [Option<FieldElement>],
-        transcript: &mut ProverState<SkyscraperSponge, FieldElement>,
+        transcript: &mut ProverState<DuplexSponge<H::Perm>, FieldElement>,
     );
 }
 
 impl WitnessBuilderSolver for WitnessBuilder {
-    fn solve(
+    fn solve<H: HashConfig>(
         &self,
         acir_witness_idx_to_value_map: &WitnessMap<NoirElement>,
         witness: &mut [Option<FieldElement>],
-        transcript: &mut ProverState<SkyscraperSponge, FieldElement>,
+        transcript: &mut ProverState<DuplexSponge<H::Perm>, FieldElement>,
     ) {
         match self {
             WitnessBuilder::Constant(ConstantTerm(witness_idx, c)) => {

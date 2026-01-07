@@ -1,3 +1,4 @@
+mod bench;
 mod circuit_stats;
 mod generate_gnark_inputs;
 mod prepare;
@@ -41,6 +42,7 @@ enum Commands {
     CircuitStats(circuit_stats::Args),
     Verify(verify::Args),
     GenerateGnarkInputs(generate_gnark_inputs::Args),
+    Bench(bench::Args),
 }
 
 impl Command for Args {
@@ -57,6 +59,7 @@ impl Command for Commands {
             Self::CircuitStats(args) => args.run(),
             Self::Verify(args) => args.run(),
             Self::GenerateGnarkInputs(args) => args.run(),
+            Self::Bench(args) => args.run(),
         }
     }
 }

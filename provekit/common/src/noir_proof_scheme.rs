@@ -1,5 +1,6 @@
 use {
     crate::{
+        hash::HashFunction,
         whir_r1cs::{WhirR1CSProof, WhirR1CSScheme},
         witness::{NoirWitnessGenerator, SplitWitnessBuilders},
         NoirElement, R1CS,
@@ -16,6 +17,7 @@ pub struct NoirProofScheme {
     pub split_witness_builders: SplitWitnessBuilders,
     pub witness_generator:      NoirWitnessGenerator,
     pub whir_for_witness:       WhirR1CSScheme,
+    pub hash_function:          HashFunction,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -1,6 +1,6 @@
 use {
     ark_poly::EvaluationDomain,
-    provekit_common::{IOPattern, WhirConfig},
+    provekit_common::{hash::HashConfig, WhirConfig},
     serde::{Deserialize, Serialize},
     std::{fs::File, io::Write},
     tracing::instrument,
@@ -61,7 +61,7 @@ pub struct WHIRConfigGnark {
 }
 
 impl WHIRConfigGnark {
-    pub fn new(whir_params: &WhirConfig) -> Self {
+    pub fn new<H: HashConfig>(whir_params: &WhirConfig<H>) -> Self {
         WHIRConfigGnark {
             n_rounds:               whir_params
                 .folding_factor
@@ -104,11 +104,11 @@ impl WHIRConfigGnark {
 
 /// Writes config used for Gnark circuit to a file
 #[instrument(skip_all)]
-pub fn gnark_parameters(
-    whir_params_witness: &WhirConfig,
-    whir_params_hiding_spartan: &WhirConfig,
+pub fn gnark_parameters<H: HashConfig>(
+    whir_params_witness: &WhirConfig<H>,
+    whir_params_hiding_spartan: &WhirConfig<H>,
     transcript: &[u8],
-    io: &IOPattern,
+    io_pattern_bytes: &[u8],
     m_0: usize,
     m: usize,
     a_num_terms: usize,
@@ -116,12 +116,12 @@ pub fn gnark_parameters(
     w1_size: usize,
 ) -> GnarkConfig {
     GnarkConfig {
-        whir_config_witness: WHIRConfigGnark::new(whir_params_witness),
-        whir_config_hiding_spartan: WHIRConfigGnark::new(whir_params_hiding_spartan),
+        whir_config_witness: WHIRConfigGnark::new::<H>(whir_params_witness),
+        whir_config_hiding_spartan: WHIRConfigGnark::new::<H>(whir_params_hiding_spartan),
         log_num_constraints: m_0,
         log_num_variables: m,
         log_a_num_terms: a_num_terms,
-        io_pattern: String::from_utf8(io.as_bytes().to_vec()).unwrap(),
+        io_pattern: String::from_utf8(io_pattern_bytes.to_vec()).unwrap(),
         transcript: transcript.to_vec(),
         transcript_len: transcript.to_vec().len(),
         num_challenges,
@@ -131,11 +131,11 @@ pub fn gnark_parameters(
 
 /// Writes config used for Gnark circuit to a file
 #[instrument(skip_all)]
-pub fn write_gnark_parameters_to_file(
-    whir_params_witness: &WhirConfig,
-    whir_params_hiding_spartan: &WhirConfig,
+pub fn write_gnark_parameters_to_file<H: HashConfig>(
+    whir_params_witness: &WhirConfig<H>,
+    whir_params_hiding_spartan: &WhirConfig<H>,
     transcript: &[u8],
-    io: &IOPattern,
+    io_pattern_bytes: &[u8],
     m_0: usize,
     m: usize,
     a_num_terms: usize,
@@ -143,11 +143,11 @@ pub fn write_gnark_parameters_to_file(
     w1_size: usize,
     file_path: &str,
 ) {
-    let gnark_config = gnark_parameters(
+    let gnark_config = gnark_parameters::<H>(
         whir_params_witness,
         whir_params_hiding_spartan,
         transcript,
-        io,
+        io_pattern_bytes,
         m_0,
         m,
         a_num_terms,

@@ -4,22 +4,22 @@ use {
     crate::witness::witness_builder::WitnessBuilderSolver,
     acir::native_types::WitnessMap,
     provekit_common::{
-        skyscraper::SkyscraperSponge,
+        hash::HashConfig,
         utils::batch_inverse_montgomery,
         witness::{LayerType, LayeredWitnessBuilders, WitnessBuilder},
         FieldElement, NoirElement, R1CS,
     },
-    spongefish::ProverState,
+    spongefish::{duplex_sponge::DuplexSponge, ProverState},
     tracing::instrument,
 };
 
 pub trait R1CSSolver {
-    fn solve_witness_vec(
+    fn solve_witness_vec<H: HashConfig>(
         &self,
         witness: &mut Vec<Option<FieldElement>>,
         plan: LayeredWitnessBuilders,
         acir_map: &WitnessMap<NoirElement>,
-        transcript: &mut ProverState<SkyscraperSponge, FieldElement>,
+        transcript: &mut ProverState<DuplexSponge<H::Perm>, FieldElement>,
     );
 
     #[cfg(test)]
@@ -48,19 +48,19 @@ impl R1CSSolver for R1CS {
     /// Panics if a denominator witness is not set when needed for inversion.
     /// This indicates a bug in the layer scheduling algorithm.
     #[instrument(skip_all)]
-    fn solve_witness_vec(
+    fn solve_witness_vec<H: HashConfig>(
         &self,
         witness: &mut Vec<Option<FieldElement>>,
         plan: LayeredWitnessBuilders,
         acir_map: &WitnessMap<NoirElement>,
-        transcript: &mut ProverState<SkyscraperSponge, FieldElement>,
+        transcript: &mut ProverState<DuplexSponge<H::Perm>, FieldElement>,
     ) {
         for layer in &plan.layers {
             match layer.typ {
                 LayerType::Other => {
                     // Execute regular operations
                     for builder in &layer.witness_builders {
-                        builder.solve(&acir_map, witness, transcript);
+                        builder.solve::<H>(&acir_map, witness, transcript);
                     }
                 }
                 LayerType::Inverse => {
