@@ -1,8 +1,5 @@
 use {
-    crate::{
-        hash::{pow::DigestPoW, HashConfig},
-        FieldElement,
-    },
+    crate::{hash::pow::DigestPoW, FieldElement},
     ark_crypto_primitives::{
         crh::{CRHScheme, TwoToOneCRHScheme},
         merkle_tree::{Config, IdentityDigestConverter},
@@ -12,13 +9,7 @@ use {
     rand08::Rng,
     serde::{Deserialize, Serialize},
     sha2::Sha256,
-    spongefish::{
-        codecs::arkworks_algebra::{
-            FieldDomainSeparator, FieldToUnitDeserialize, FieldToUnitSerialize,
-        },
-        duplex_sponge::{DuplexSponge, Permutation},
-        DomainSeparator, ProofResult, ProverState, VerifierState,
-    },
+    spongefish::duplex_sponge::Permutation,
     std::borrow::Borrow,
     zeroize::Zeroize,
 };
@@ -153,42 +144,12 @@ impl Config for Poseidon2MerkleConfig {
 #[derive(Clone)]
 pub struct Poseidon2HashConfig;
 
-impl HashConfig for Poseidon2HashConfig {
-    const NAME: &'static str = "poseidon2";
-    type Perm = Poseidon2Permutation;
-    type CRH = Poseidon2CRH;
-    type TwoToOne = Poseidon2TwoToOne;
-    type MerkleConfig = Poseidon2MerkleConfig;
-    type Pow = DigestPoW<Sha256>;
-}
-
-impl<P> whir::whir::domainsep::DigestDomainSeparator<Poseidon2MerkleConfig>
-    for DomainSeparator<DuplexSponge<P>, FieldElement>
-where
-    P: Permutation<U = FieldElement> + Clone + Default,
-{
-    fn add_digest(self, label: &str) -> Self {
-        <Self as FieldDomainSeparator<FieldElement>>::add_scalars(self, 1, label)
-    }
-}
-
-impl<P> whir::whir::utils::DigestToUnitSerialize<Poseidon2MerkleConfig>
-    for ProverState<DuplexSponge<P>, FieldElement>
-where
-    P: Permutation<U = FieldElement> + Clone + Default,
-{
-    fn add_digest(&mut self, digest: FieldElement) -> ProofResult<()> {
-        self.add_scalars(&[digest])
-    }
-}
-
-impl<'a, P> whir::whir::utils::DigestToUnitDeserialize<Poseidon2MerkleConfig>
-    for VerifierState<'a, DuplexSponge<P>, FieldElement>
-where
-    P: Permutation<U = FieldElement> + Clone + Default,
-{
-    fn read_digest(&mut self) -> ProofResult<FieldElement> {
-        let [r] = self.next_scalars()?;
-        Ok(r)
-    }
-}
+crate::hash::impl_hash_suite!(
+    Poseidon2HashConfig,
+    "poseidon2",
+    Poseidon2Permutation,
+    Poseidon2CRH,
+    Poseidon2TwoToOne,
+    Poseidon2MerkleConfig,
+    DigestPoW<Sha256>
+);

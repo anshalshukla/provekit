@@ -1,12 +1,13 @@
 pub mod blake3;
-pub(crate) mod common;
 pub mod dispatch;
+mod macros;
 pub mod poseidon2;
 pub mod pow;
-pub mod sha2;
-pub mod sha3;
+pub mod sha;
 pub mod skyscraper;
 pub use dispatch::dispatch_hash;
+pub(crate) mod byte_hash;
+pub(crate) use macros::{impl_hash_suite, impl_whir_digest_helpers};
 use {
     crate::FieldElement,
     ark_crypto_primitives::{
@@ -66,8 +67,8 @@ pub trait HashConfig: Clone + Send + Sync + 'static {
 pub trait WhirCompatibleHash: HashConfig {}
 
 impl WhirCompatibleHash for crate::hash::skyscraper::SkyscraperHashConfig {}
-impl WhirCompatibleHash for crate::hash::sha2::Sha2HashConfig {}
-impl WhirCompatibleHash for crate::hash::sha3::Sha3HashConfig {}
+impl WhirCompatibleHash for crate::hash::sha::Sha2HashConfig {}
+impl WhirCompatibleHash for crate::hash::sha::Sha3HashConfig {}
 impl WhirCompatibleHash for crate::hash::blake3::Blake3HashConfig {}
 impl WhirCompatibleHash for crate::hash::poseidon2::Poseidon2HashConfig {}
 

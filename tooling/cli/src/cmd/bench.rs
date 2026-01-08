@@ -118,13 +118,11 @@ fn benchmark_hash(
     let mut verify_times = Vec::with_capacity(runs);
     let mut verify_rss = Vec::with_capacity(runs);
 
-    for run_idx in 0..runs {
-        tracing::info!(%hash, run = run_idx + 1, "proving");
+    for _ in 0..runs {
         let (proof, time, rss) = run_prove(&scheme, input)?;
         prove_times.push(time);
         prove_rss.push(rss);
 
-        tracing::info!(%hash, run = run_idx + 1, "verifying");
         let (time_v, rss_v) = run_verify(&scheme, &proof)?;
         verify_times.push(time_v);
         verify_rss.push(rss_v);
@@ -138,20 +136,29 @@ fn benchmark_hash(
 }
 
 fn run_prove(scheme: &NoirProofScheme, input_path: &Path) -> Result<(NoirProof, f64, f64)> {
-    let hash = scheme.hash_function;
     let prover = Prover::from_noir_proof_scheme(scheme.clone());
-    tracing::debug!(%hash, "Proving with hash");
     let start = Instant::now();
     let proof = prover.prove(input_path)?;
     let duration = start.elapsed().as_secs_f64();
     let rss = current_rss_mb();
-    Ok((proof, duration, rss))
+
+    // Subtract the proof size from RSS measurement to get actual proving memory
+    // usage
+    let proof_size_mb = calculate_proof_size_mb(&proof)?;
+    let adjusted_rss = (rss - proof_size_mb).max(0.0);
+
+    tracing::debug!(
+        raw_rss_mb = rss,
+        proof_size_mb = proof_size_mb,
+        adjusted_rss_mb = adjusted_rss,
+        "Memory measurement adjusted for proof size"
+    );
+
+    Ok((proof, duration, adjusted_rss))
 }
 
 fn run_verify(scheme: &NoirProofScheme, proof: &NoirProof) -> Result<(f64, f64)> {
-    let hash = scheme.hash_function;
     let mut verifier = Verifier::from_noir_proof_scheme(scheme.clone());
-    tracing::debug!(%hash, "Verifying with hash");
     let start = Instant::now();
     verifier.verify(proof)?;
     let duration = start.elapsed().as_secs_f64();
@@ -206,10 +213,15 @@ fn current_rss_mb() -> f64 {
     let mut system = System::new();
     system.refresh_process(pid);
     if let Some(process) = system.process(pid) {
-        // memory() returns kilobytes
-        return process.memory() as f64 / 1024.0;
+        return process.memory() as f64 / 1024.0 / 1024.0;
     }
     0.0
+}
+
+fn calculate_proof_size_mb(proof: &NoirProof) -> Result<f64> {
+    let serialized =
+        serde_json::to_vec(proof).context("failed to serialize proof to calculate size")?;
+    Ok(serialized.len() as f64 / 1024.0 / 1024.0)
 }
 
 fn print_summary(stats: &HashStats) {

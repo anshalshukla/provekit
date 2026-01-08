@@ -11,11 +11,11 @@ macro_rules! dispatch_hash {
                 $body
             }
             $crate::hash::HashFunction::Sha2 => {
-                type $hash_config = $crate::hash::sha2::Sha2HashConfig;
+                type $hash_config = $crate::hash::sha::Sha2HashConfig;
                 $body
             }
             $crate::hash::HashFunction::Sha3 => {
-                type $hash_config = $crate::hash::sha3::Sha3HashConfig;
+                type $hash_config = $crate::hash::sha::Sha3HashConfig;
                 $body
             }
             $crate::hash::HashFunction::Blake3 => {
