@@ -117,7 +117,6 @@ serde_json = "1.0"
 sha2 = "0.10.9"
 sha3 = "0.10.8"
 libc = "0.2.164"
-sysinfo = "0.30.13"
 test-case = "3.3.1"
 toml = "0.8.8"
 tokio = { version = "1.47.1", features = ["full"] }

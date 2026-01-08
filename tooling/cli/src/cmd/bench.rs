@@ -137,33 +137,42 @@ fn benchmark_hash(
 
 fn run_prove(scheme: &NoirProofScheme, input_path: &Path) -> Result<(NoirProof, f64, f64)> {
     let prover = Prover::from_noir_proof_scheme(scheme.clone());
+
+    #[cfg(feature = "profiling-allocator")]
+    {
+        // Reset the peak memory tracker before proving
+        crate::ALLOCATOR.reset_max();
+    }
+
     let start = Instant::now();
     let proof = prover.prove(input_path)?;
     let duration = start.elapsed().as_secs_f64();
-    let rss = current_rss_mb();
 
-    // Subtract the proof size from RSS measurement to get actual proving memory
-    // usage
-    let proof_size_mb = calculate_proof_size_mb(&proof)?;
-    let adjusted_rss = (rss - proof_size_mb).max(0.0);
+    // Use the profiling allocator's peak memory measurement
+    #[cfg(feature = "profiling-allocator")]
+    let memory_mb = crate::ALLOCATOR.max() as f64 / 1024.0 / 1024.0;
 
-    tracing::debug!(
-        raw_rss_mb = rss,
-        proof_size_mb = proof_size_mb,
-        adjusted_rss_mb = adjusted_rss,
-        "Memory measurement adjusted for proof size"
-    );
-
-    Ok((proof, duration, adjusted_rss))
+    Ok((proof, duration, memory_mb))
 }
 
 fn run_verify(scheme: &NoirProofScheme, proof: &NoirProof) -> Result<(f64, f64)> {
     let mut verifier = Verifier::from_noir_proof_scheme(scheme.clone());
+
+    #[cfg(feature = "profiling-allocator")]
+    {
+        // Reset the peak memory tracker before verification
+        crate::ALLOCATOR.reset_max();
+    }
+
     let start = Instant::now();
     verifier.verify(proof)?;
     let duration = start.elapsed().as_secs_f64();
-    let rss = current_rss_mb();
-    Ok((duration, rss))
+
+    // Use the profiling allocator's peak memory measurement
+    #[cfg(feature = "profiling-allocator")]
+    let memory_mb = crate::ALLOCATOR.max() as f64 / 1024.0 / 1024.0;
+
+    Ok((duration, memory_mb))
 }
 
 impl StageStats {
@@ -201,27 +210,6 @@ fn variance(values: &[f64], mean: f64) -> f64 {
         })
         .sum::<f64>()
         / values.len() as f64
-}
-
-fn current_rss_mb() -> f64 {
-    use sysinfo::{Pid, System};
-
-    let pid: Pid = match sysinfo::get_current_pid() {
-        Ok(pid) => pid,
-        Err(_) => return 0.0,
-    };
-    let mut system = System::new();
-    system.refresh_process(pid);
-    if let Some(process) = system.process(pid) {
-        return process.memory() as f64 / 1024.0 / 1024.0;
-    }
-    0.0
-}
-
-fn calculate_proof_size_mb(proof: &NoirProof) -> Result<f64> {
-    let serialized =
-        serde_json::to_vec(proof).context("failed to serialize proof to calculate size")?;
-    Ok(serialized.len() as f64 / 1024.0 / 1024.0)
 }
 
 fn print_summary(stats: &HashStats) {
